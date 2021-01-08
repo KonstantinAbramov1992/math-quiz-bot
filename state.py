@@ -9,3 +9,9 @@ class State:
     message_with_inline_keyboard_id = None
     # new user observed
     new = False
+    # User name
+    user_name = None
+    #
+    right_tries = None
+    #
+    wrong_tries = None

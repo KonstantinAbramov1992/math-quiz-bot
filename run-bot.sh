@@ -1,3 +1,3 @@
-#!/usr/bin/env bash
+f#!/usr/bin/env bash
 
 python3 bot.py

@@ -38,21 +38,38 @@
         <div class="ladder-header-row">
             <div class="ladder-cell">rank</div>
             <div class="ladder-cell">user</div>
-            <div class="ladder-cell">success</div>
+            <div class="ladder-cell">right answers</div>
+            <div class="ladder-cell">wrong answers</div>
         </div>
     </div>
-    {% for rank in ladder %}
+
+
+
+    {% for row in ladder %}
+
+    {% for rank, info in row.items() %}
+
     <div class="ladder-row">
+
+<!--Jinja 2  -->
         <div class="ladder-cell">
-            {{ rank.rank }}
+            {{ rank }}
         </div>
         <div class="ladder-cell">
-            {{ rank.user }}
+            {{ info[0] }}
         </div>
+
         <div class="ladder-cell">
-            {{ rank.success }}
+            {{ info[1] }}
         </div>
+
+        <div class="ladder-cell">
+            {{ info[2] }}
+
+        </div>
+
     </div>
+    {% endfor %}
     {% endfor %}
 </div>
 

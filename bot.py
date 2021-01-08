@@ -4,16 +4,19 @@ import random
 import telebot
 from telebot import types
 import psycopg2
+from Rank import get_rank
 
 from task import Task
 from state import State
 
 
+
+
 def gen_task():
     # gen 1st number
-    a = random.randrange(1, 9, 1)
+    a = random.randrange(1, 20, 1)
     # gen 2nd number
-    b = random.randrange(1, 9, 1)
+    b = random.randrange(1, 20, 1)
 
     t = Task()
     t.task = f"{a}x{b}"
@@ -36,7 +39,7 @@ def get_user_state(user_id):
     cur = conn.cursor()
     cur.execute("""
         SELECT
-            user_id, task, answer, tries
+            user_id, task, answer, tries, user_name, right_tries, wrong_tries
         FROM
             state 
         WHERE
@@ -48,6 +51,7 @@ def get_user_state(user_id):
     if row is None:
         s = State()
         s.new = True
+        s.user_id = user_id
         return s
 
     t = None
@@ -60,6 +64,9 @@ def get_user_state(user_id):
     s.user_id = row[0]
     s.task = t
     s.tries = row[3]
+    s.user_name = row[4]
+    s.right_tries = row[5]
+    s.wrong_tries = row[6]
 
     if user_id in state_storage:
         s.message_with_inline_keyboard_id = state_storage[user_id].message_with_inline_keyboard_id
@@ -87,9 +94,9 @@ def save_user_state(user_state):
         INSERT INTO
            state
         VALUES
-            (%s, %s, %s, %s)
+            (%s, %s, %s, %s, %s, %s, %s)
         """,
-            (user_state.user_id, task.task, task.answer, user_state.tries))
+            (user_state.user_id, task.task, task.answer, user_state.tries, user_state.user_name, user_state.right_tries, user_state.wrong_tries))
     else:
         # update
         cur = conn.cursor()
@@ -98,11 +105,14 @@ def save_user_state(user_state):
             SET
               task=%s,
               answer=%s,
-              tries=%s
+              tries=%s,
+              user_name=%s,
+              right_tries=%s,
+              wrong_tries=%s
             WHERE
               user_id=%s
         """,
-            (task.task, task.answer, user_state.tries, user_state.user_id))
+            (task.task, task.answer, user_state.tries, user_state.user_name, user_state.right_tries, user_state.wrong_tries, user_state.user_id))
     # Save to database
     conn.commit()
     cur.close()
@@ -132,6 +142,28 @@ token = f.read()
 bot = telebot.TeleBot(token, parse_mode=None)
 
 
+@bot.message_handler(commands=['statistics'])
+def statistics(message):
+    statis = get_rank()
+    jk = 0
+    sn_list = ['flag', ]
+    for rt in statis:
+        for jk in rt:
+            an_lis = rt[jk]
+            if sn_list[0] != 'flag':
+                bot.reply_to(message, f'Рейтинг: {perv_jk}\nИмя: {sn_list[0]}\nПравильные ответы: {sn_list[1]}\n'
+                                      f'Неправильные ответы:'
+                                      f' {sn_list[2]}')
+            sn_list = []
+            perv_jk = jk
+            for fd in an_lis:
+                sn_list.append(fd)
+
+
+    bot.reply_to(message, f'Рейтинг: {jk}\nИмя: {sn_list[0]}\nПравильные ответы: {sn_list[1]}\nНеправильные ответы:'
+                          f' {sn_list[2]}')
+
+
 @bot.message_handler(commands=['help'])
 def on_help(message):
     bot.reply_to(message, "Чтобы начать викторину, нажми кнопку 'Новая задача' или отправь любое сообщение.")
@@ -142,6 +174,9 @@ def on_start(message):
     # Load user state
     user_id = message.from_user.id
     state = get_user_state(user_id)
+    if state.wrong_tries is None:
+        state.wrong_tries = 0
+        state.right_tries = 0
     if state.task is None:
         # Send welcome message with inline keyboard.
         start_msg = bot.send_message(message.chat.id, "Привет! Давай порешаем задачки?", reply_markup=new_task_markup())
@@ -157,6 +192,10 @@ def on_start(message):
 def on_all(message):
     user_id = message.from_user.id
     state = get_user_state(user_id)
+    state.user_name = message.from_user.first_name
+    if state.right_tries is None:
+        state.wrong_tries = 0
+        state.right_tries = 0
 
     if state.task is None:
         # Generate new task, show to user.
@@ -170,6 +209,7 @@ def on_all(message):
         save_user_state(state)
     else:
         # Check answer
+
         if message.text == state.task.answer:
             msg = bot.send_message(message.chat.id, f"И правда, {state.task.task}={message.text}. Продолжим?",
                                    reply_markup=new_task_markup())
@@ -178,8 +218,10 @@ def on_all(message):
             state.task = None
             state.tries = 0
             state.user_id = user_id
+            state.right_tries += 1
             save_user_state(state)
         else:
+            state.wrong_tries += 1
             wrong_msg = bot.send_message(message.chat.id, "Неверный ответ, попробуйте ещё раз.",
                                          reply_markup=new_task_markup())
             # remove keyboard from earlier message
@@ -212,11 +254,10 @@ def inline_handler(call):
     save_user_state(state)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Open db connection
-    f = open("db.txt", "r")
-    db_conn = f.read()
-    conn = psycopg2.connect(db_conn)
+
+    conn = psycopg2.connect(database="postgres", user="postgres", password="kostyazhuk")
 
     # Test connection
     tcur = conn.cursor()
